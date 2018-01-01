@@ -1,14 +1,32 @@
 package main
 
-import "fmt"
+import "log"
 import "database/sql"
 import _ "github.com/go-sql-driver/mysql"
 import "net/http"
 import "encoding/json"
+import "time"
+
+type Explanation struct {
+	Explanationid int
+	Wordid int
+	Explanation string
+	Tags string
+	Sentence string
+	BackgroundImg string
+
+	ViewsCounter int
+	ThumbupCounter int
+	ThumbdownCounter int
+
+	Author string
+	Updatetime time.Time
+}
 
 type Word struct {
 	Wordid int
 	Value string
+	Explanations []Explanation
 }
 
 type WordsResult struct {
@@ -32,10 +50,9 @@ func OutputJson(w http.ResponseWriter, ret int, reason string) {
 	out := &EmptyResult{ret, reason}
 	b, err := json.Marshal(out)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 		return
 	}
-	fmt.Println(out)
 
 	w.Write(b)
 }
@@ -67,11 +84,30 @@ func WordsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		words = append(words, word)
 	}
+	rows.Close()
+
+	var exp Explanation
+	for idx := range words {
+		rows, err := db.Query("SELECT * FROM explanations WHERE wordid=?", words[idx].Wordid)
+		for rows.Next() {
+			err = rows.Scan(&exp.Explanationid, &exp.Wordid, &exp.Explanation,
+					&exp.Tags, &exp.Sentence, &exp.BackgroundImg,
+					&exp.ViewsCounter, &exp.ThumbupCounter, &exp.ThumbdownCounter,
+					&exp.Author, &exp.Updatetime)
+			if err != nil {
+				panic(err.Error())
+			}
+			words[idx].Explanations = append(words[idx].Explanations, exp)
+		}
+		rows.Close()
+	}
+
+	log.Println(words)
 
 	out := &WordsResult{0, "OK", words}
 	b, err := json.Marshal(out)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 		return
 	}
 
@@ -80,7 +116,7 @@ func WordsHandler(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 
-	db, err = sql.Open("mysql", "lanthree:@/dictionary")
+	db, err = sql.Open("mysql", "lanthree:@/dictionary?parseTime=true")
 	if err != nil {
 		panic(err.Error())
 	}
@@ -92,5 +128,5 @@ func main() {
 	http.HandleFunc("/words", WordsHandler)
 	http.HandleFunc("/", NotFoundHandler)
 
-	http.ListenAndServe("0.0.0.0:80", nil)
+	log.Fatal(http.ListenAndServe("0.0.0.0:80", nil))
 }
