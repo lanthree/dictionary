@@ -45,9 +45,13 @@ var (
 	err error
 )
 
-func OutputJson(w http.ResponseWriter, ret int, reason string) {
+func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/" {
+		http.Redirect(w, r, "/words", http.StatusFound)
+		return
+	}
 
-	out := &EmptyResult{ret, reason}
+	out := &EmptyResult{-1, "Not Found"}
 	b, err := json.Marshal(out)
 	if err != nil {
 		log.Fatal(err)
@@ -55,16 +59,6 @@ func OutputJson(w http.ResponseWriter, ret int, reason string) {
 	}
 
 	w.Write(b)
-}
-
-func NotFoundHandler(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path == "/" {
-		http.Redirect(w, r, "/words", http.StatusFound)
-		return
-	}
-
-	OutputJson(w, 0, "Not Found")
-	return
 }
 
 func WordsHandler(w http.ResponseWriter, r *http.Request) {
